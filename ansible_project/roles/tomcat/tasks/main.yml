@@ -1,0 +1,96 @@
+---
+- name: Install and configure Tomcat
+  hosts: all
+  become: true  # Required for privileged tasks
+
+  tasks:
+    - name: Update package list
+      apt: 
+        update_cache: yes
+
+    - name: Install default Java
+      apt:
+        name: default-jdk
+        state: present
+
+    - name: Create Tomcat group
+      group:
+        name: tomcat
+        state: present
+
+    - name: Create Tomcat user
+      user:
+        name: tomcat
+        group: tomcat
+        system: yes
+        home: /opt/tomcat
+        shell: /bin/false
+
+    - name: Download Tomcat binary
+      get_url:
+        url: http://redrockdigimark.com/apachemirror/tomcat/tomcat-8/v8.5.31/bin/apache-tomcat-8.5.31.tar.gz
+        dest: /tmp/apache-tomcat-8.5.31.tar.gz
+
+    - name: Create Tomcat directory
+      file:
+        path: /opt/tomcat
+        state: directory
+        mode: 0755
+
+    - name: Extract Tomcat archive
+      unarchive:
+        src: /tmp/apache-tomcat-8.5.31.tar.gz
+        dest: /opt/tomcat
+        extra_opts: [ "-C /opt/tomcat", "--strip-components=1" ]
+
+    - name: Set group ownership for Tomcat directory
+      file:
+        path: /opt/tomcat
+        group: tomcat
+        recurse: yes
+
+    - name: Set read permissions for conf directory group
+      file:
+        path: /opt/tomcat/conf
+        group: tomcat
+        mode: g+r
+
+    - name: Set execute permissions for conf directory group
+      file:
+        path: /opt/tomcat/conf
+        group: tomcat
+        mode: g+x
+
+    - name: Set ownership for webapps, work, temp, logs directories
+      file:
+        path: "{{ item }}"
+        owner: tomcat
+        group: tomcat
+        state: directory
+      with_items:
+        - /opt/tomcat/webapps
+        - /opt/tomcat/work
+        - /opt/tomcat/temp
+        - /opt/tomcat/logs
+        
+    - name: Configure Tomcat service
+      template:
+        src: "tomcat.service.j2"
+        dest: "/etc/systemd/system/tomcat.service" 
+ 
+    - name:  Reload systemd daemon
+      systemd:
+        name: daemon-reload
+        state: reloaded
+
+    - name: Start Tomcat service
+      systemd:
+        name: tomcat
+        state: started
+
+  handlers:
+    - name: Restart Tomcat Service
+      systemd:
+        name: tomcat
+        state: restarted
+      become: true
