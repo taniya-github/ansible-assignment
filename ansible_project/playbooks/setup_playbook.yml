@@ -2,5 +2,7 @@
 - name: Setup Apache Tomcat
   hosts: tomcat_servers
   become: true
+  become_method: sudo
   roles:
     - role: tomcat
+

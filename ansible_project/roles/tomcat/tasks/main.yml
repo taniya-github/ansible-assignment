@@ -1,11 +1,12 @@
 ---
-- name: Update package list
-  apt: 
-    update_cache: true
+- name: Install systemd module dependencies
+  yum:
+    name: python3-systemd
+    state: present
 
 - name: Install default Java
-  apt:
-    name: default-jdk
+  yum:
+    name: java-1.8.0-openjdk-devel
     state: present
 
 - name: Create Tomcat group
@@ -23,18 +24,18 @@
 
 - name: Download Tomcat binary
   get_url:
-    url: http://redrockdigimark.com/apachemirror/tomcat/tomcat-8/v8.5.31/bin/apache-tomcat-8.5.31.tar.gz
-    dest: /tmp/apache-tomcat-8.5.31.tar.gz
+    url: https://dlcdn.apache.org/tomcat/tomcat-8/v8.5.99/bin/apache-tomcat-8.5.99.tar.gz
+    dest: /tmp/apache-tomcat-8.5.99.tar.gz
 
 - name: Create Tomcat directory
   file:
     path: /opt/tomcat
     state: directory
-    mode: 755
+    mode: '0755'
 
 - name: Extract Tomcat archive
   unarchive:
-    src: /tmp/apache-tomcat-8.5.31.tar.gz
+    src: /tmp/apache-tomcat-8.5.99.tar.gz
     dest: /opt/tomcat
     extra_opts: ["-C", "/opt/tomcat", "--strip-components=1"]
 
@@ -56,6 +57,19 @@
     group: tomcat
     mode: g+x
 
+- name: Set read permissions for all files under /opt/tomcat/conf/
+  find:
+    paths: /opt/tomcat/conf/
+    recurse: yes
+    file_type: file
+  register: conf_files
+
+- name: Set read write permissions for conf files
+  file:
+    path: "{{ item.path }}"
+    mode: '0644'
+  loop: "{{ conf_files.files }}"
+    
 - name: Set ownership for webapps, work, temp, logs directories
   file:
     path: "{{ item }}"
@@ -71,14 +85,13 @@
 - name: Configure Tomcat service
   template:
     src: "../roles/tomcat/templates/tomcat.service.j2"
-    dest: "/etc/systemd/system/tomcat.service" 
+    dest: "/etc/systemd/system/tomcat.service"
 
 - name: Reload systemd daemon
   systemd:
-    name: daemon-reload
-    state: reloaded
+    daemon_reload: true
 
 - name: Start Tomcat service
   systemd:
     name: tomcat
-    state: started
+    state: restarted
